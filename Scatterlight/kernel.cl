@@ -1,7 +1,7 @@
 ﻿#define Scale -2.0f
 #define minRadius2 0.125f
 #define fixedRadius2 1.0f
-#define foldingLimit 2.0f
+#define foldingLimit 1.0f
 #define MaxRayDist 64
 #define NormalEpsilon 0.125f
 #define NormDistCount 5
@@ -9,8 +9,9 @@
 #define AoStepcount 5
 #define SlowRender 2
 #define DofPickup 512.0f
-#define Fov 1.0f
 #define FogDensity 0.125f
+#define FocalPlane 4
+#define BackgroundColor (float3)(0.5f, 0.4f, 0.4f)
 
 #define IntMax 2147483647
 
@@ -18,10 +19,10 @@ int Rand(int seed) {
 	return seed * 0x5DEECE66D + 0xB;
 }
 
-float3 RayDir(float3 look, float3 up, float2 screenCoords) {
+float3 RayDir(float3 look, float3 up, float2 screenCoords, float fov) {
 	float3 right = cross(look, up);
 	float3 realUp = cross(right, look);
-	return normalize(right * screenCoords.x * Fov + realUp * screenCoords.y * Fov + look);
+	return normalize(right * screenCoords.x * fov + realUp * screenCoords.y * fov + look);
 }
 
 float De(float3 z) {
@@ -105,11 +106,10 @@ float3 Shadow(float3 position, float focalDistance)
 float3 Fog(float3 color, float focalDistance, float totalDistance) {
 	float ratio = totalDistance / focalDistance;
 	float value = 1 / exp(ratio * FogDensity);
-	const float3 fogcolor = (float3)(0.5f, 0.5f, 0.5f);
-	return mix(fogcolor, color, value);
+	return mix(BackgroundColor, mix(color, (float3)(0.0f, 0.5f, 1.0f), value * 0.1f), value);
 }
 
-__kernel void Main(__global float4* screen, int width, int height, float4 position, float4 lookat, float4 updir, int frame, int trueFrame) {
+__kernel void Main(__global float4* screen, int width, int height, float4 position, float4 lookat, float4 updir, int frame, int trueFrame, float fov) {
 	if ((get_group_id(0) + get_group_id(1) + trueFrame) % SlowRender != 0)
 		return;
 	int x = get_global_id(0);
@@ -135,7 +135,7 @@ __kernel void Main(__global float4* screen, int width, int height, float4 positi
 		screenCoords += (float2)((float)randx / IntMax / width, (float)randy / IntMax / height);
 	}
 
-	float3 rayDir = RayDir(look, up, screenCoords);
+	float3 rayDir = RayDir(look, up, screenCoords, fov);
 
 	float totalDistance = De(pos);
 	//float focalDistance = (
@@ -143,17 +143,17 @@ __kernel void Main(__global float4* screen, int width, int height, float4 positi
 	//			screen[(height / 4) * width + width * 3 / 4].w +
 	//			screen[(height * 3 / 4) * width + width / 4].w +
 	//			screen[(height * 3 / 4) * width + width * 3 / 4].w) / 4;
-	float focalDistance = totalDistance * 3;
+	float focalDistance = totalDistance * FocalPlane;
 	float distance = totalDistance;
-	for (int i = 0; i < 1024 && totalDistance < MaxRayDist && distance * width * Quality * 4 > totalDistance; i++) {
-		distance = De(pos + rayDir * totalDistance) - totalDistance / (width * Quality);
+	for (int i = 0; i < 1024 && totalDistance < MaxRayDist && distance * width * Quality * 4 > totalDistance * fov; i++) {
+		distance = De(pos + rayDir * totalDistance) - totalDistance * fov / (width * Quality);
 		totalDistance += distance;
 	}
 	
 	float3 color = (float3)(1, 1, 1);
 
 	if (totalDistance < MaxRayDist) {
-		totalDistance = NormDist(pos, rayDir, totalDistance, width);
+		totalDistance = NormDist(pos, rayDir, totalDistance, width / fov);
 		float3 finalPos = pos + rayDir * totalDistance;
 		float3 normal = Normal(finalPos);
 		color *= AO(finalPos, normal);
@@ -161,7 +161,7 @@ __kernel void Main(__global float4* screen, int width, int height, float4 positi
 		//color *= Shadow(finalPos, focalDistance);
 		color = Fog(color, focalDistance, totalDistance);
 	} else {
-		color = (float3)(0.5, 0.5, 0.5);
+		color = BackgroundColor;
 	}
 
 	float3 finalColor = clamp(color, 0.0f, 1.0f);
@@ -172,7 +172,7 @@ __kernel void Main(__global float4* screen, int width, int height, float4 positi
 		if (frameFixed > 0 && x > 0 && x < width - 1 && y > 0 && y < height - 1) {
 			float dofPickup = totalDistance / focalDistance;
 			dofPickup = dofPickup + 1 / dofPickup - 2;
-			dofPickup *= (float)DofPickup / width;
+			dofPickup *= dofPickup * (float)DofPickup / width;
 			int pixelCount = 0;
 			for (int dy = -1; dy < 2; dy++) {
 				for (int dx = -1; dx < 2; dx++) {

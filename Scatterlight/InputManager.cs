@@ -16,6 +16,7 @@ namespace Scatterlight
         private Vector3d _up;
         private bool _screenshot;
         private float _moveSpeed = 1f;
+        private float _fov = 1f;
         private const float TurnSpeed = 1f;
         private readonly Dictionary<Key, Action<float>> _bindings;
         private const string StateFilename = "state.xml";
@@ -37,12 +38,14 @@ namespace Scatterlight
                     {Key.Space, dt => _position -= _up * dt * _moveSpeed},
                     {Key.Q, dt => _up = Vector3d.Transform(_up, Matrix4d.CreateFromAxisAngle(_lookat, TurnSpeed * dt))},
                     {Key.E, dt => _up = Vector3d.Transform(_up, Matrix4d.CreateFromAxisAngle(_lookat, -TurnSpeed * dt))},
-                    {Key.Left, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(_up, TurnSpeed * dt))},
-                    {Key.Right, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(_up, -TurnSpeed * dt))},
-                    {Key.Up, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(Vector3d.Cross(_up, _lookat), TurnSpeed * dt))},
-                    {Key.Down, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(Vector3d.Cross(_up, _lookat), -TurnSpeed * dt))},
+                    {Key.Left, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(_up, TurnSpeed * dt * _fov))},
+                    {Key.Right, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(_up, -TurnSpeed * dt * _fov))},
+                    {Key.Up, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(Vector3d.Cross(_up, _lookat), TurnSpeed * dt * _fov))},
+                    {Key.Down, dt => _lookat = Vector3d.Transform(_lookat, Matrix4d.CreateFromAxisAngle(Vector3d.Cross(_up, _lookat), -TurnSpeed * dt * _fov))},
                     {Key.R, dt => _moveSpeed *= 1 + dt},
-                    {Key.F, dt =>  _moveSpeed *= 1 - dt}
+                    {Key.F, dt =>  _moveSpeed *= 1 - dt},
+                    {Key.N, dt => _fov *= 1 + dt},
+                    {Key.M, dt =>  _fov *= 1 - dt}
                 };
             _keyboard.KeyDown += KeyboardOnKeyDown;
         }
@@ -81,7 +84,8 @@ namespace Scatterlight
                                                  new XElement("y", _up.Y.ToString(CultureInfo.InvariantCulture)),
                                                  new XElement("z", _up.Z.ToString(CultureInfo.InvariantCulture))),
                                     new XElement("movespeed", _moveSpeed.ToString(CultureInfo.InvariantCulture)),
-                                    new XElement("frame", Frame.ToString(CultureInfo.InvariantCulture))));
+                                    new XElement("frame", Frame.ToString(CultureInfo.InvariantCulture)),
+                                    new XElement("fov", _fov.ToString(CultureInfo.InvariantCulture))));
             xdoc.Save(StateFilename);
         }
 
@@ -90,11 +94,11 @@ namespace Scatterlight
             if (System.IO.File.Exists(StateFilename) == false)
                 return;
             int frame;
-            LoadState(out _position, out _lookat, out _up, out _moveSpeed, out frame);
+            LoadState(out _position, out _lookat, out _up, out _moveSpeed, out frame, out _fov);
             Frame = frame;
         }
 
-        public static void LoadState(out Vector3d position, out Vector3d lookat, out Vector3d up, out float moveSpeed, out int frame)
+        public static void LoadState(out Vector3d position, out Vector3d lookat, out Vector3d up, out float moveSpeed, out int frame, out float fov)
         {
             var root = XDocument.Load(StateFilename).Root;
             position = ParseVector3(root.Element("position"));
@@ -102,6 +106,7 @@ namespace Scatterlight
             up = ParseVector3(root.Element("up"));
             moveSpeed = float.Parse(root.Element("movespeed").Value);
             frame = int.Parse(root.Element("frame").Value);
+            fov = float.Parse(root.Element("fov").Value);
         }
 
         private static Vector3d ParseVector3(XContainer element)
@@ -124,6 +129,11 @@ namespace Scatterlight
         public Vector3 Up
         {
             get { return (Vector3)_up; }
+        }
+
+        public float Fov
+        {
+            get { return _fov; }
         }
 
         public int Frame { get; set; }

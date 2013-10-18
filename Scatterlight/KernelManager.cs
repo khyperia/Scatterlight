@@ -19,6 +19,7 @@ namespace Scatterlight
         private int _width;
         private int _height;
         private int _trueFrame;
+        private bool _doingScreenshot;
 
         private const int ScreenshotHeight = 2048;
         private const double ScreenshotAspectRatio = 16.0 / 9.0;
@@ -68,16 +69,19 @@ namespace Scatterlight
 
         public void Render(ComputeMemory buffer, ComputeCommandQueue queue)
         {
-            if (_kernels == null)
+            if (_doingScreenshot || _kernels == null)
                 return;
-            CoreRender(buffer, queue, _kernels, new Vector4(_input.Position), new Vector4(_input.Lookat), new Vector4(_input.Up), _input.Frame, _trueFrame, _width, _height, _globalSize, _localSize);
+            CoreRender(buffer, queue, _kernels, new Vector4(_input.Position), new Vector4(_input.Lookat), new Vector4(_input.Up), _input.Frame, _trueFrame, _input.Fov, _width, _height, _globalSize, _localSize);
             _input.Frame++;
             _trueFrame++;
             if (_input.CheckForScreenshot())
+            {
+                _doingScreenshot = true;
                 ThreadPool.QueueUserWorkItem(o => Screenshot());
+            }
         }
 
-        private static void CoreRender(ComputeMemory buffer, ComputeCommandQueue queue, IEnumerable<ComputeKernel> kernels, Vector4 position, Vector4 lookat, Vector4 up, int frame, int trueFrame, int width, int height, long[] globalSize, long[] localSize)
+        private static void CoreRender(ComputeMemory buffer, ComputeCommandQueue queue, IEnumerable<ComputeKernel> kernels, Vector4 position, Vector4 lookat, Vector4 up, int frame, int trueFrame, float fov, int width, int height, long[] globalSize, long[] localSize)
         {
             foreach (var kernel in kernels)
             {
@@ -89,6 +93,7 @@ namespace Scatterlight
                 kernel.SetValueArgument(5, up);
                 kernel.SetValueArgument(6, frame);
                 kernel.SetValueArgument(7, trueFrame);
+                kernel.SetValueArgument(8, fov);
                 queue.Execute(kernel, new long[2], globalSize, localSize, null);
                 queue.Finish();
             }
@@ -102,16 +107,16 @@ namespace Scatterlight
             var queue = new ComputeCommandQueue(_program.Context, _program.Context.Devices[0], ComputeCommandQueueFlags.None);
 
             Vector3d position, lookat, up;
-            float moveSpeed;
+            float moveSpeed, fov;
             int frame;
-            InputManager.LoadState(out position, out lookat, out up, out moveSpeed, out frame);
+            InputManager.LoadState(out position, out lookat, out up, out moveSpeed, out frame, out fov);
 
             var globalSize = GlobalLaunchsizeFor(ScreenshotWidth, ScreenshotHeight);
 
             for (var i = 0; i < 8; i++)
-                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)position), new Vector4((Vector3)lookat), new Vector4((Vector3)up), 0, i, ScreenshotWidth, ScreenshotHeight, globalSize, _localSize);
+                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)position), new Vector4((Vector3)lookat), new Vector4((Vector3)up), 0, i, fov, ScreenshotWidth, ScreenshotHeight, globalSize, _localSize);
             for (var i = 0; i < frame; i++)
-                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)position), new Vector4((Vector3)lookat), new Vector4((Vector3)up), i, i, ScreenshotWidth, ScreenshotHeight, globalSize, _localSize);
+                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)position), new Vector4((Vector3)lookat), new Vector4((Vector3)up), i, i, fov, ScreenshotWidth, ScreenshotHeight, globalSize, _localSize);
 
             var pixels = new Vector4[ScreenshotWidth * ScreenshotHeight];
             queue.ReadFromBuffer(computeBuffer, ref pixels, true, null);
@@ -138,6 +143,7 @@ namespace Scatterlight
                 screenshotNumber++;
             bmp.Save(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "screenshot" + screenshotNumber + ".png"));
             RenderWindow.SetStatus("Took screenshot #" + screenshotNumber);
+            _doingScreenshot = false;
         }
 
         public void Dispose()
