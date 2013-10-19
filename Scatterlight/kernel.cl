@@ -9,8 +9,8 @@
 #define AoStepcount 5
 #define SlowRender 2
 #define DofPickup 512.0f
-#define FogDensity 0.125f
-#define FocalPlane 4
+#define FogDensity 0.0625f
+#define FocalPlane 3
 #define BackgroundColor (float3)(0.5f, 0.4f, 0.4f)
 
 #define IntMax 2147483647
@@ -138,11 +138,6 @@ __kernel void Main(__global float4* screen, int width, int height, float4 positi
 	float3 rayDir = RayDir(look, up, screenCoords, fov);
 
 	float totalDistance = De(pos);
-	//float focalDistance = (
-	//			screen[(height / 4) * width + width / 4].w +
-	//			screen[(height / 4) * width + width * 3 / 4].w +
-	//			screen[(height * 3 / 4) * width + width / 4].w +
-	//			screen[(height * 3 / 4) * width + width * 3 / 4].w) / 4;
 	float focalDistance = totalDistance * FocalPlane;
 	float distance = totalDistance;
 	for (int i = 0; i < 1024 && totalDistance < MaxRayDist && distance * width * Quality * 4 > totalDistance * fov; i++) {

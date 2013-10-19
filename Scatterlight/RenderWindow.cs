@@ -51,7 +51,7 @@ namespace Scatterlight
             _newStatus = status;
         }
 
-        protected override void OnResize(System.EventArgs e)
+        protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
             var width = ClientSize.Width;
@@ -89,7 +89,7 @@ namespace Scatterlight
             base.OnRenderFrame(e);
         }
 
-        protected override void OnClosed(System.EventArgs e)
+        protected override void OnClosed(EventArgs e)
         {
             _interop.Dispose();
             _kernelManager.Dispose();
