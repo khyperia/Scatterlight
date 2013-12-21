@@ -13,6 +13,7 @@ namespace Scatterlight
         private readonly KeyboardDevice _keyboard;
         private CameraConfig _config;
         private bool _screenshot;
+        private bool _gif;
         private const float TurnSpeed = 1f;
         private readonly Dictionary<Key, Action<float>> _bindings;
         private const string StateFilename = "state.xml";
@@ -53,6 +54,9 @@ namespace Scatterlight
                 case Key.O:
                     VideoRenderer.TakeVideo();
                     RenderWindow.SetStatus("Started video");
+                    break;
+                case Key.I:
+                    _gif = true;
                     break;
                 case Key.J:
                     VideoRenderer.AddFrame(_config);
@@ -149,6 +153,13 @@ namespace Scatterlight
         {
             var value = _screenshot;
             _screenshot = false;
+            return value;
+        }
+
+        public bool CheckForGif()
+        {
+            var value = _gif;
+            _gif = false;
             return value;
         }
 
