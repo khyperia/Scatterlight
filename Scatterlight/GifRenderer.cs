@@ -23,7 +23,7 @@ namespace Scatterlight
             {
                 var offset = Math.Sin((double)i / Frames * (Math.PI * 2)) * camera.MoveSpeed / ReductionAmount;
                 camera.Position = originalPos + offset * left;
-                var bitmap = manager.GetScreenshot(camera, 480);
+                var bitmap = manager.GetScreenshot(camera, 480, 1);
                 var filename = Ext.UniqueFileInDirectory(directory, "swish", "png");
                 bitmap.Save(filename);
                 filenames[i] = filename;

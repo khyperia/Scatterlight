@@ -69,7 +69,7 @@ namespace Scatterlight
             var d3 = i == Frames.Count - 2 ? Frames[Frames.Count - 1] : Frames[i + 2];
             var t = (float)(_frame.Value % StepsPerPoint) / StepsPerPoint;
             var config = CameraConfig.CatmullRom(d0, d1, d2, d3, t);
-            var bmp = kernelManager.GetScreenshot(config, 720);
+            var bmp = kernelManager.GetScreenshot(config, 720, 2);
 
             if (_frame.Value % 256 == 0 || _aviManager == null)
             {

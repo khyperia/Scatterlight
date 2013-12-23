@@ -20,10 +20,8 @@ namespace Scatterlight
         private long[] _globalSize;
         private int _width;
         private int _height;
-        private int _trueFrame;
         private bool _doingScreenshot;
 
-        private const int SlowRenderCount = 2;
         private const double ScreenshotAspectRatio = 16.0 / 9.0;
 
         public KernelManager(GraphicsInterop interop, InputManager input, string source)
@@ -74,9 +72,8 @@ namespace Scatterlight
                 return;
             if (VideoRenderer.CheckForVideo(this))
                 return;
-            CoreRender(buffer, queue, _kernels, new Vector4((Vector3)_input.Camera.Position), new Vector4((Vector3)_input.Camera.Lookat), new Vector4((Vector3)_input.Camera.Up), _input.Camera.Frame, _trueFrame, _input.Camera.Fov, _width, _height, _globalSize, _localSize);
+            CoreRender(buffer, queue, _kernels, new Vector4((Vector3)_input.Camera.Position), new Vector4((Vector3)_input.Camera.Lookat), new Vector4((Vector3)_input.Camera.Up), _input.Camera.Frame, _input.Camera.Fov, 1, _width, _height, _globalSize, _localSize);
             _input.Frame++;
-            _trueFrame++;
             if (_input.CheckForScreenshot())
             {
                 _doingScreenshot = true;
@@ -93,7 +90,7 @@ namespace Scatterlight
             }
         }
 
-        private static void CoreRender(ComputeMemory buffer, ComputeCommandQueue queue, IEnumerable<ComputeKernel> kernels, Vector4 position, Vector4 lookat, Vector4 up, int frame, int trueFrame, float fov, int width, int height, long[] globalSize, long[] localSize)
+        private static void CoreRender(ComputeMemory buffer, ComputeCommandQueue queue, IEnumerable<ComputeKernel> kernels, Vector4 position, Vector4 lookat, Vector4 up, int frame, float fov, int slowRenderCount, int width, int height, long[] globalSize, long[] localSize)
         {
             foreach (var kernel in kernels)
             {
@@ -104,14 +101,13 @@ namespace Scatterlight
                 kernel.SetValueArgument(4, lookat);
                 kernel.SetValueArgument(5, up);
                 kernel.SetValueArgument(6, frame);
-                kernel.SetValueArgument(7, trueFrame);
-                kernel.SetValueArgument(8, fov);
+                kernel.SetValueArgument(7, fov);
+                kernel.SetValueArgument(8, slowRenderCount);
                 queue.Execute(kernel, LaunchSize, globalSize, localSize, null);
-                queue.Finish();
             }
         }
 
-        public Bitmap GetScreenshot(CameraConfig camera, int screenshotHeight)
+        public Bitmap GetScreenshot(CameraConfig camera, int screenshotHeight, int slowRender)
         {
             var screenshotWidth = (int) (screenshotHeight*ScreenshotAspectRatio);
             var computeBuffer = new ComputeBuffer<Vector4>(_program.Context, ComputeMemoryFlags.ReadWrite, screenshotWidth * screenshotHeight);
@@ -119,10 +115,10 @@ namespace Scatterlight
 
             var globalSize = GlobalLaunchsizeFor(screenshotWidth, screenshotHeight);
 
-            for (var i = 0; i < SlowRenderCount; i++)
-                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), 0, i, camera.Fov, screenshotWidth, screenshotHeight, globalSize, _localSize);
-            for (var i = 0; i < camera.Frame; i++)
-                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, i, camera.Fov, screenshotWidth, screenshotHeight, globalSize, _localSize);
+            for (var i = 0; i < slowRender; i++)
+                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, camera.Fov, slowRender, screenshotWidth, screenshotHeight, globalSize, _localSize);
+            for (var i = 0; i < camera.Frame * slowRender; i++)
+                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, camera.Fov, slowRender, screenshotWidth, screenshotHeight, globalSize, _localSize);
 
             var pixels = new Vector4[screenshotWidth * screenshotHeight];
             queue.ReadFromBuffer(computeBuffer, ref pixels, true, null);
@@ -157,7 +153,7 @@ namespace Scatterlight
         {
             RenderWindow.SetStatus("Rendering screenshot");
 
-            var bmp = GetScreenshot(InputManager.LoadState(), 2048);
+            var bmp = GetScreenshot(InputManager.LoadState(), 2048 * 4, 8);
 
             RenderWindow.SetStatus("Saving screenshot");
 
