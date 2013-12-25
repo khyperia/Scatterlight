@@ -77,7 +77,11 @@ namespace Scatterlight
             if (_input.CheckForScreenshot())
             {
                 _doingScreenshot = true;
-                ThreadPool.QueueUserWorkItem(o => Screenshot());
+                ThreadPool.QueueUserWorkItem(o =>
+                {
+                    Screenshot();
+                    _doingScreenshot = false;
+                });
             }
             if (_input.CheckForGif())
             {
@@ -152,15 +156,12 @@ namespace Scatterlight
         private void Screenshot()
         {
             RenderWindow.SetStatus("Rendering screenshot");
-
-            var bmp = GetScreenshot(InputManager.LoadState(), 2048 * 4, 8);
-
+            var state = InputManager.LoadState();
+            state.Frame = 75;
+            var bmp = GetScreenshot(state, 2048, 16);
             RenderWindow.SetStatus("Saving screenshot");
-
-            
             bmp.Save(Ext.UniqueFilename("screenshot", "png"));
             RenderWindow.SetStatus("Took screenshot");
-            _doingScreenshot = false;
         }
 
         public void Dispose()

@@ -66,9 +66,7 @@ namespace Scatterlight
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Finish();
             _queue.AcquireGLObjects(new[] { _openCl }, null);
-            _queue.Finish();
             renderer(_openCl, _queue);
-            _queue.Finish();
             _queue.ReleaseGLObjects(new[] { _openCl }, null);
             _queue.Finish();
             GL.BindBuffer(BufferTarget.PixelUnpackBuffer, _pub);
