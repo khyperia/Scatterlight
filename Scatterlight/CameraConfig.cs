@@ -14,8 +14,8 @@ namespace Scatterlight
         public CameraConfig(Vector3d position, Vector3d lookat, Vector3d up, float moveSpeed, int frame, float fov)
         {
             _position = position;
-            _lookat = lookat;
-            _up = up;
+            _lookat = Vector3d.Normalize(lookat);
+            _up = Vector3d.Cross(Vector3d.Cross(_lookat, Vector3d.Normalize(up)), _lookat);
             _moveSpeed = moveSpeed;
             _frame = frame;
             _fov = fov;
@@ -55,6 +55,11 @@ namespace Scatterlight
         {
             get { return _fov; }
             set { _fov = value; }
+        }
+
+        public float FocalDistance
+        {
+            get { return _moveSpeed * 3f; }
         }
 
         public static CameraConfig CatmullRom(CameraConfig p0, CameraConfig p1, CameraConfig p2, CameraConfig p3, float t)

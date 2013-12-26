@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Resources;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Input;
@@ -13,17 +14,17 @@ namespace Scatterlight
 
         private const string MainTitle = "Scatterlight";
         private static string _newStatus;
-        private static int _timeSinceTitleSwap;
+        private static DateTime _lastTitleSwap = DateTime.UtcNow;
 
         private int _fps;
         private int _lastFps;
 
-        public RenderWindow(string kernelFile)
+        public RenderWindow()
             : base(DefaultWidth, DefaultHeight, GraphicsMode.Default, MainTitle, GameWindowFlags.Default, DisplayDevice.Default, 0, 0, GraphicsContextFlags.ForwardCompatible)
         {
             _interop = new GraphicsInterop();
             _input = new InputManager(Keyboard);
-            _kernelManager = new KernelManager(_interop, _input, System.IO.File.ReadAllText(kernelFile));
+            _kernelManager = new KernelManager(_interop, _input, EmbeddedResourceManager.GetText("kernel.cl"));
         }
 
         private static int DefaultWidth
@@ -49,6 +50,7 @@ namespace Scatterlight
         public static void SetStatus(string status)
         {
             _newStatus = status;
+            _lastTitleSwap = DateTime.UtcNow;
         }
 
         protected override void OnResize(EventArgs e)
@@ -65,11 +67,10 @@ namespace Scatterlight
             _input.Update((float)e.Time);
             if (Keyboard[Key.Escape])
                 Close();
-            _timeSinceTitleSwap++;
-            if (_timeSinceTitleSwap > 600)
+            if (DateTime.UtcNow > _lastTitleSwap + TimeSpan.FromSeconds(5))
             {
                 _newStatus = null;
-                _timeSinceTitleSwap = 0;
+                _lastTitleSwap = DateTime.UtcNow;
             }
             _fps++;
             var now = DateTime.UtcNow.Second;
@@ -84,8 +85,11 @@ namespace Scatterlight
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
-            _interop.Draw(_kernelManager.Render);
-            SwapBuffers();
+            if (!_kernelManager.Busy)
+            {
+                _interop.Draw(_kernelManager.Render);
+                SwapBuffers();
+            }
             base.OnRenderFrame(e);
         }
 

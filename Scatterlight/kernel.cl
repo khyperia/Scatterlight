@@ -1,4 +1,4 @@
-﻿#define Scale -1.5f
+﻿#define Scale -2.5f
 #define minRadius2 0.125f
 #define fixedRadius2 1.0f
 #define foldingLimit 1.0f
@@ -7,7 +7,7 @@
 #define NormDistCount 5
 #define Quality 8
 #define AoStepcount 5
-#define DofPickup 0.002f
+#define DofPickup 0.005f
 #define FogDensity 0.0625f
 #define FocalPlane 3
 #define BackgroundColor (float3)(0.5f, 0.5f, 0.5f)
@@ -151,36 +151,35 @@ float3 Postprocess(float totalDistance, float3 origin, float3 direction, float f
 	return clamp(color, 0.0f, 1.0f);
 }
 
-__kernel void Main(__global float4* screen, int width, int height, float4 position, float4 lookat, float4 updir, int frame, float fov, int slowRender) {
+__kernel void Main(__global float4* screen, int width, int height, float4 position, float4 lookat, float4 updir, int frame, float fov, int slowRender, float focalDistance) {
 	if ((get_group_id(0) + get_group_id(1) + frame) % slowRender != 0)
 		return;
 	int x = get_global_id(0);
 	int y = get_global_id(1);
 	if (x >= width || y >= height)
 		return;
-
+	
 	float2 screenCoords = (float2)((float)x / width * 2 - 1, ((float)y / height * 2 - 1) * height / width);
 
 	float3 pos = position.xyz;
 	float3 look = lookat.xyz;
 	float3 up = updir.xyz;
 
-	int rand = Rand(x + y * width + frame * width * width * width);
-	for (int i = 0; i < 3; i++)
+	int rand = Rand(x * width * height + y * width + frame * 10);
+	for (int i = 0; i < 4; i++)
 		rand = Rand(rand);
-		
-	float focalDistance = De(pos) * FocalPlane;
-
+	
 	if (frame != 0)
 		rand = ApplyDof(&pos, &look, focalDistance, rand);
 
 	float3 rayDir = RayDir(look, up, screenCoords, fov);
 
 	float totalDistance = Trace(pos, rayDir, sqrt((float)width) * Quality / fov);
-
+	
 	float3 color = Postprocess(totalDistance, pos, rayDir, focalDistance, width / fov);
 
-	if (frame > slowRender) {
+	if (frame > slowRender)
+	{
 		int frameFixed = frame / slowRender - 1;
 		color = (color + screen[y * width + x].xyz * frameFixed) / (frameFixed + 1);
 	}

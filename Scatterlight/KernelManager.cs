@@ -50,6 +50,8 @@ namespace Scatterlight
             _kernels = _program.CreateAllKernels().ToArray();
         }
 
+        public bool Busy { get { return _doingScreenshot; }}
+
         public void ResizeLaunch(int width, int height)
         {
             _width = width;
@@ -72,7 +74,7 @@ namespace Scatterlight
                 return;
             if (VideoRenderer.CheckForVideo(this))
                 return;
-            CoreRender(buffer, queue, _kernels, new Vector4((Vector3)_input.Camera.Position), new Vector4((Vector3)_input.Camera.Lookat), new Vector4((Vector3)_input.Camera.Up), _input.Camera.Frame, _input.Camera.Fov, 1, _width, _height, _globalSize, _localSize);
+            CoreRender(buffer, queue, _kernels, new Vector4((Vector3)_input.Camera.Position), new Vector4((Vector3)_input.Camera.Lookat), new Vector4((Vector3)_input.Camera.Up), _input.Camera.Frame, _input.Camera.Fov, 1, _input.Camera.FocalDistance, _width, _height, _globalSize, _localSize);
             _input.Frame++;
             if (_input.CheckForScreenshot())
             {
@@ -94,7 +96,7 @@ namespace Scatterlight
             }
         }
 
-        private static void CoreRender(ComputeMemory buffer, ComputeCommandQueue queue, IEnumerable<ComputeKernel> kernels, Vector4 position, Vector4 lookat, Vector4 up, int frame, float fov, int slowRenderCount, int width, int height, long[] globalSize, long[] localSize)
+        private static void CoreRender(ComputeMemory buffer, ComputeCommandQueue queue, IEnumerable<ComputeKernel> kernels, Vector4 position, Vector4 lookat, Vector4 up, int frame, float fov, int slowRenderCount, float focalDistance, int width, int height, long[] globalSize, long[] localSize)
         {
             foreach (var kernel in kernels)
             {
@@ -107,22 +109,23 @@ namespace Scatterlight
                 kernel.SetValueArgument(6, frame);
                 kernel.SetValueArgument(7, fov);
                 kernel.SetValueArgument(8, slowRenderCount);
+                kernel.SetValueArgument(9, focalDistance);
                 queue.Execute(kernel, LaunchSize, globalSize, localSize, null);
             }
         }
 
         public Bitmap GetScreenshot(CameraConfig camera, int screenshotHeight, int slowRender)
         {
-            var screenshotWidth = (int) (screenshotHeight*ScreenshotAspectRatio);
+            var screenshotWidth = (int)(screenshotHeight * ScreenshotAspectRatio);
             var computeBuffer = new ComputeBuffer<Vector4>(_program.Context, ComputeMemoryFlags.ReadWrite, screenshotWidth * screenshotHeight);
             var queue = new ComputeCommandQueue(_program.Context, _program.Context.Devices[0], ComputeCommandQueueFlags.None);
 
             var globalSize = GlobalLaunchsizeFor(screenshotWidth, screenshotHeight);
 
             for (var i = 0; i < slowRender; i++)
-                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, camera.Fov, slowRender, screenshotWidth, screenshotHeight, globalSize, _localSize);
+                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, camera.Fov, slowRender, camera.FocalDistance, screenshotWidth, screenshotHeight, globalSize, _localSize);
             for (var i = 0; i < camera.Frame * slowRender; i++)
-                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, camera.Fov, slowRender, screenshotWidth, screenshotHeight, globalSize, _localSize);
+                CoreRender(computeBuffer, queue, _kernels, new Vector4((Vector3)camera.Position), new Vector4((Vector3)camera.Lookat), new Vector4((Vector3)camera.Up), i, camera.Fov, slowRender, camera.FocalDistance, screenshotWidth, screenshotHeight, globalSize, _localSize);
 
             var pixels = new Vector4[screenshotWidth * screenshotHeight];
             queue.ReadFromBuffer(computeBuffer, ref pixels, true, null);
@@ -157,7 +160,7 @@ namespace Scatterlight
         {
             RenderWindow.SetStatus("Rendering screenshot");
             var state = InputManager.LoadState();
-            state.Frame = 75;
+            state.Frame = 100;
             var bmp = GetScreenshot(state, 2048, 16);
             RenderWindow.SetStatus("Saving screenshot");
             bmp.Save(Ext.UniqueFilename("screenshot", "png"));
